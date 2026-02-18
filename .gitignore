@@ -1,0 +1,21 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+.vite
+
+# Backend specific
+pothole-app/server/uploads/
+pothole-app/server/database.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.vault-password

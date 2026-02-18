@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoadWatch - Smart Pothole Reporting</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --primary: #2563eb;
+            --secondary: #1e40af;
+            --accent: #3b82f6;
+        }
+
+        body {
+            background-color: #f8fafc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .navbar {
+            background: linear-gradient(to right, #1e3a8a, #2563eb) !important;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .hero-section {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            padding: 100px 0;
+            border-radius: 0 0 50px 50px;
+        }
+
+        .dashboard-card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s;
+            overflow: hidden;
+        }
+
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .status-Pending {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-InProgress {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-Fixed {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+
+        #map {
+            height: 400px;
+            width: 100%;
+            border-radius: 15px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .fab-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            font-size: 24px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- NAV BAR -->
+    <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold d-flex align-items-center" href="#" onclick="showPage('home')">
+                🚧 RoadWatch
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center gap-2">
+                    <li class="nav-item"><a class="nav-link active" href="#" onclick="showPage('home')">Home</a></li>
+
+                    <!-- Role Specific Links -->
+                    <li class="nav-item hidden" id="nav-admin"><a class="nav-link" href="#"
+                            onclick="showPage('admin')">Admin Panel</a></li>
+                    <li class="nav-item hidden" id="nav-officer"><a class="nav-link" href="#"
+                            onclick="showPage('officer')">Officer Jobs</a></li>
+                    <li class="nav-item hidden" id="nav-citizen"><a class="nav-link" href="#"
+                            onclick="showPage('citizen')">My Reports</a></li>
+
+                    <!-- Auth Buttons -->
+                    <li class="nav-item" id="auth-buttons">
+                        <button class="btn btn-light text-primary fw-bold btn-sm px-3" data-bs-toggle="modal"
+                            data-bs-target="#loginModal">Login</button>
+                        <button class="btn btn-outline-light btn-sm px-3" data-bs-toggle="modal"
+                            data-bs-target="#registerModal">Register</button>
+                    </li>
+                    <li class="nav-item d-none" id="user-profile">
+                        <div class="dropdown">
+                            <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button"
+                                data-bs-toggle="dropdown" id="user-name-display">
+                                User
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="#" onclick="logout()">Logout</a></li>
+                            </ul>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- CONTENT AREAS -->
+    <main id="main-content">
+
+        <!-- 1. HOME / LANDING PAGE -->
+        <section id="page-home" class="page-section">
+            <header class="hero-section text-center mb-5">
+                <div class="container">
+                    <h1 class="display-4 fw-bold mb-3">Fix Our Roads, Together.</h1>
+                    <p class="lead mb-4 opacity-90">Report potholes instantly. Track repairs. Make your city safer.</p>
+                    <div class="d-flex justify-content-center gap-3">
+                        <button class="btn btn-light btn-lg text-primary fw-bold px-5 shadow" onclick="startReport()">📸
+                            Report Now</button>
+                        <a href="#live-map" class="btn btn-outline-light btn-lg px-5">View Map</a>
+                    </div>
+                </div>
+            </header>
+
+            <div class="container mb-5" id="live-map">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h3 class="fw-bold text-dark">Live Incident Map</h3>
+                        <p class="text-muted">Real-time reports from across the city.</p>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <span class="badge bg-primary p-2 fs-6">Total: <span id="stat-total">0</span></span>
+                        <span class="badge bg-success p-2 fs-6">Fixed: <span id="stat-fixed">0</span></span>
+                    </div>
+                </div>
+                <div id="map"></div>
+            </div>
+        </section>
+
+        <!-- 2. ADMIN DASHBOARD -->
+        <section id="page-admin" class="page-section hidden container py-5">
+            <h2 class="fw-bold mb-4 border-bottom pb-2">👮‍♂️ Admin Dashboard</h2>
+
+            <ul class="nav nav-tabs mb-4" id="adminTabs">
+                <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#admin-officers">Manage
+                        Officers</a></li>
+                <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#admin-reports">All Reports</a></li>
+            </ul>
+
+            <div class="tab-content">
+                <!-- Manage Officers -->
+                <div class="tab-pane fade show active" id="admin-officers">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4>Registered Officers</h4>
+                        <button class="btn btn-primary btn-sm" onclick="openAddOfficerModal()">+ Add Officer</button>
+                    </div>
+                    <div class="table-responsive bg-white rounded shadow-sm p-3">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="officers-list"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- All Reports -->
+                <div class="tab-pane fade" id="admin-reports">
+                    <div class="row g-4" id="admin-reports-grid"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. OFFICER DASHBOARD -->
+        <section id="page-officer" class="page-section hidden container py-5">
+            <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
+                <h2 class="fw-bold">👷 Officer Workspace</h2>
+                <span class="badge bg-warning text-dark p-2">Pending Jobs: <span
+                        id="officer-pending-count">0</span></span>
+            </div>
+            <div class="row g-4" id="officer-reports-grid">
+                <div class="col-12 text-center py-5 text-muted">Loading assignments...</div>
+            </div>
+        </section>
+
+        <!-- 4. CITIZEN DASHBOARD -->
+        <section id="page-citizen" class="page-section hidden container py-5">
+            <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
+                <h2 class="fw-bold">👤 My Dashboard</h2>
+                <button class="btn btn-success fw-bold" onclick="startReport()">+ New Report</button>
+            </div>
+            <div class="row g-4" id="citizen-reports-grid">
+                <div class="col-12 text-center py-5 text-muted">You haven't submitted any reports yet.</div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- MODALS -->
+
+    <!-- Login Modal -->
+    <div class="modal fade" id="loginModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Login</h5><button class="btn-close"
+                        data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="loginForm">
+                        <input type="email" class="form-control mb-3" id="loginEmail" placeholder="Email" required>
+                        <input type="password" class="form-control mb-3" id="loginPass" placeholder="Password" required>
+                        <button type="submit" class="btn btn-primary w-100 fw-bold">Login</button>
+                    </form>
+                    <div class="mt-3 text-center small text-muted">
+                        Admin: admin@pothole.com / admin123 <br>
+                        Officer: officer@pothole.com / officer123 <br>
+                        Citizen: citizen@pothole.com / citizen123
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Modal -->
+    <div class="modal fade" id="registerModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Register</h5><button class="btn-close"
+                        data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="registerForm">
+                        <input type="text" class="form-control mb-2" id="regName" placeholder="Full Name" required>
+                        <input type="email" class="form-control mb-2" id="regEmail" placeholder="Email" required>
+                        <input type="text" class="form-control mb-2" id="regPhone" placeholder="Phone" required>
+                        <input type="password" class="form-control mb-3" id="regPass" placeholder="Password" required>
+                        <button type="submit" class="btn btn-success w-100 fw-bold">Sign Up</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Modal -->
+    <div class="modal fade" id="reportModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Submit Report</h5><button class="btn-close"
+                        data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="reportForm">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Photo Evidence</label>
+                            <input type="file" class="form-control" id="repImage" accept="image/*">
+                        </div>
+                        <div class="d-grid mb-3">
+                            <button type="button" class="btn btn-outline-primary" onclick="getGPS()">📍 Detect
+                                Location</button>
+                            <small id="gpsStatus" class="text-center text-muted mt-1"></small>
+                            <input type="hidden" id="repLat"><input type="hidden" id="repLng">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Description</label>
+                            <input type="text" class="form-control" id="repDesc"
+                                placeholder="e.g. Main road near school" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Severity</label>
+                            <select class="form-select" id="repSev">
+                                <option>Medium</option>
+                                <option>High</option>
+                                <option>Low</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 fw-bold" id="btnSubmitReport" disabled>Submit
+                            Report</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // CONFIG
+        const API_URL = 'http://localhost:5000/api';
+        let currentUser = null;
+        let token = localStorage.getItem('token');
+        let map;
+
+        // INIT
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            checkAuth();
+            fetchPublicData();
+        });
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page-section').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`page-${pageId}`).classList.remove('hidden');
+
+            // Refresh logic based on page
+            if (pageId === 'admin') loadAdminData();
+            if (pageId === 'officer') loadOfficerData();
+            if (pageId === 'citizen') loadCitizenData();
+        }
+
+        function checkAuth() {
+            const storedUser = localStorage.getItem('user');
+            if (storedUser && token) {
+                currentUser = JSON.parse(storedUser);
+                document.getElementById('auth-buttons').classList.add('d-none');
+                document.getElementById('user-profile').classList.remove('d-none');
+                document.getElementById('user-name-display').innerText = `${currentUser.username} (${currentUser.role})`;
+
+                // Show role-specific nav
+                if (currentUser.role === 'admin') document.getElementById('nav-admin').classList.remove('hidden');
+                if (currentUser.role === 'officer') document.getElementById('nav-officer').classList.remove('hidden');
+                if (currentUser.role === 'citizen') document.getElementById('nav-citizen').classList.remove('hidden');
+            }
+        }
+
+        // --- MAP LOGIC ---
+        function initMap() {
+            map = L.map('map').setView([11.47, 78.00], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        }
+
+        async function fetchPublicData() {
+            try {
+                const res = await fetch(`${API_URL}/reports`);
+                const reports = await res.json();
+
+                document.getElementById('stat-total').innerText = reports.length;
+                document.getElementById('stat-fixed').innerText = reports.filter(r => r.status === 'Fixed').length;
+
+                reports.forEach(r => {
+                    if (r.latitude && r.longitude) {
+                        L.marker([r.latitude, r.longitude]).addTo(map)
+                            .bindPopup(`<b>${r.description}</b><br><span class="badge bg-${getStatusColor(r.status)}">${r.status}</span>`);
+                    }
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        // --- AUTH LOGIC ---
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPass').value;
+
+            try {
+                const res = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    location.reload();
+                } else {
+                    alert(data.error);
+                }
+            } catch (e) { alert("Network Error"); }
+        });
+
+        function logout() { localStorage.clear(); location.reload(); }
+
+        // --- DASHBOARD LOGIC : ADMIN ---
+        async function loadAdminData() {
+            // Load Officers
+            const resVal = await fetch(`${API_URL}/admin/users`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const users = await resVal.json();
+            const officers = users.filter(u => u.role === 'officer');
+
+            const tbody = document.getElementById('officers-list');
+            tbody.innerHTML = officers.map(u => `
+                <tr>
+                    <td>${u.username}</td>
+                    <td>${u.email}</td>
+                    <td><span class="badge ${u.isApproved ? 'bg-success' : 'bg-warning'}">${u.isApproved ? 'Active' : 'Pending'}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteUser('${u._id}')">Delete</button>
+                    </td>
+                </tr>
+            `).join('') || '<tr><td colspan="4" class="text-center">No officers found</td></tr>';
+
+            // Load Reports
+            const resRep = await fetch(`${API_URL}/reports`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const reports = await resRep.json();
+            renderReportsGrid(reports, 'admin-reports-grid', true);
+        }
+
+        // --- DASHBOARD LOGIC : OFFICER ---
+        async function loadOfficerData() {
+            const res = await fetch(`${API_URL}/reports`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const reports = await res.json();
+            const activeReports = reports.filter(r => r.status !== 'Fixed');
+            document.getElementById('officer-pending-count').innerText = activeReports.length;
+            renderReportsGrid(activeReports, 'officer-reports-grid', true); // Officers can see actions
+        }
+
+        // --- DASHBOARD LOGIC : CITIZEN ---
+        async function loadCitizenData() {
+            const res = await fetch(`${API_URL}/my-reports`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const reports = await res.json();
+            renderReportsGrid(reports, 'citizen-reports-grid', false);
+        }
+
+        // --- SHARED: RENDER GRID ---
+        function renderReportsGrid(reports, elementId, showActions) {
+            const container = document.getElementById(elementId);
+            if (!reports.length) { container.innerHTML = '<div class="col-12 text-center py-5 text-muted">No reports found.</div>'; return; }
+
+            container.innerHTML = reports.map(r => `
+                <div class="col-md-4">
+                    <div class="dashboard-card bg-white h-100 position-relative">
+                        <span class="status-badge status-${r.status.replace(' ', '')} position-absolute top-0 end-0 m-2">${r.status}</span>
+                        <div style="height: 180px; background: #eee;">
+                            ${r.imageUrl ? `<img src="${r.imageUrl}" class="w-100 h-100 object-fit-cover">` : '<div class="d-flex align-items-center justify-content-center h-100 text-muted">No Image</div>'}
+                        </div>
+                        <div class="p-3">
+                            <h5 class="fw-bold mb-1">${r.description}</h5>
+                            <small class="text-muted d-block mb-3">Severity: <b class="text-danger">${r.severity}</b></small>
+                            ${showActions && currentUser.role !== 'citizen' && r.status !== 'Fixed' ? `
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-primary btn-sm" onclick="setStatus('${r._id}', 'In Progress')">Start Work</button>
+                                    <button class="btn btn-success btn-sm" onclick="setStatus('${r._id}', 'Fixed')">Mark Fixed</button>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function setStatus(id, status) {
+            await fetch(`${API_URL}/reports/${id}/status`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ status })
+            });
+            // Refresh current view
+            if (currentUser.role === 'admin') loadAdminData();
+            if (currentUser.role === 'officer') loadOfficerData();
+            fetchPublicData(); // Update map
+        }
+
+        async function deleteUser(id) {
+            if (!confirm("Are you sure?")) return;
+            await fetch(`${API_URL}/admin/users/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+            loadAdminData();
+        }
+
+        // --- REPORTING LOGIC ---
+        function startReport() {
+            if (!token) { new bootstrap.Modal(document.getElementById('loginModal')).show(); return; }
+            new bootstrap.Modal(document.getElementById('reportModal')).show();
+        }
+
+        function getGPS() {
+            document.getElementById('gpsStatus').innerText = "Locating...";
+            navigator.geolocation.getCurrentPosition(p => {
+                document.getElementById('repLat').value = p.coords.latitude;
+                document.getElementById('repLng').value = p.coords.longitude;
+                document.getElementById('gpsStatus').innerText = "✅ Location Locked";
+                document.getElementById('btnSubmitReport').disabled = false;
+            });
+        }
+
+        document.getElementById('reportForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fd = new FormData();
+            fd.append('description', document.getElementById('repDesc').value);
+            fd.append('severity', document.getElementById('repSev').value);
+            fd.append('latitude', document.getElementById('repLat').value);
+            fd.append('longitude', document.getElementById('repLng').value);
+            fd.append('image', document.getElementById('repImage').files[0]);
+
+            const res = await fetch(`${API_URL}/reports`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: fd });
+            if (res.ok) {
+                alert("Report Sent!");
+                location.reload();
+            } else alert("Failed to send");
+        });
+
+        // Add Officer Logic
+        function openAddOfficerModal() {
+            // Reuse register modal but mod it slightly or just use prompt for simplicity in classic stack
+            const name = prompt("Officer Name:");
+            const email = prompt("Officer Email:");
+            const phone = prompt("Phone:");
+            const pass = prompt("Password:");
+            if (name && email && pass) {
+                fetch(`${API_URL}/auth/register`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: name, email, password: pass, phone, role: 'officer', isAdminCreated: true })
+                }).then(() => { alert("Officer Added"); loadAdminData(); });
+            }
+        }
+
+        function getStatusColor(status) {
+            return status === 'Fixed' ? 'success' : status === 'In Progress' ? 'primary' : 'warning';
+        }
+    </script>
+</body>
+
+</html>
